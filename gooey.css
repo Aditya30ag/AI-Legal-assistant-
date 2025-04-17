@@ -1,0 +1,41 @@
+@keyframes gooey {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.8;
+    }
+    25% {
+      transform: translate(-45%, -45%) scale(1.1);
+      opacity: 0.9;
+    }
+    50% {
+      transform: translate(-55%, -50%) scale(0.9);
+      opacity: 0.7;
+    }
+    75% {
+      transform: translate(-45%, -55%) scale(1.05);
+      opacity: 0.8;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.8;
+    }
+  }
+  
+  #gooey {
+    position: absolute;
+    height: 32vw;
+    width: 32vw;
+    border-radius: 50%;
+    background: linear-gradient(to right, #3B82F6, #A855F7); /* blue-500 to purple-500 */
+    top: 5%;
+    left: 58%;
+    filter: blur(20px);
+    animation: gooey 6s ease-in-out infinite alternate;
+  }
+  
+  /* For responsive design */
+  @media (max-width: 768px) {
+    #gooey {
+      display: none;
+    }
+  }
