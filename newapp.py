@@ -23,7 +23,7 @@ load_dotenv()
 secret_key = os.getenv("GOOGLE_API_KEY")
 if not secret_key:
     # For demonstration purposes only - should use environment variable in production
-    secret_key = "AIzaSyD0lTxCyWtEvNktf13bzqXBmSTegzYwFEk"
+    secret_key = ""
     print("WARNING: Using placeholder API key. Set GOOGLE_API_KEY environment variable.")
 
 # Configure the API
