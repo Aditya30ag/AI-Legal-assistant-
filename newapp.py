@@ -13,6 +13,7 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import pickle
 import json
+import random
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,7 +23,7 @@ load_dotenv()
 secret_key = os.getenv("GOOGLE_API_KEY")
 if not secret_key:
     # For demonstration purposes only - should use environment variable in production
-    secret_key = "your_api_key_here"
+    secret_key = "AIzaSyD0lTxCyWtEvNktf13bzqXBmSTegzYwFEk"
     print("WARNING: Using placeholder API key. Set GOOGLE_API_KEY environment variable.")
 
 # Configure the API
@@ -72,19 +73,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Model configurations
+# Model configurations - Adjusted for more conversational responses
 generation_config = {
-    "temperature": 0.2,
+    "temperature": 0.5,  # Increased for more natural responses
     "top_p": 0.95,
     "top_k": 40,
-    "max_output_tokens": 8192,
+    "max_output_tokens": 2192,
 }
 
-# Initialize legal assistant model with system instructions
+# Initialize legal assistant model with updated system instructions for conversational responses
 legal_model = genai.GenerativeModel(
     model_name="gemini-2.0-flash-exp",
     generation_config=generation_config,
-    system_instruction='''You are LegalAssistAI, an advanced legal research and analysis assistant designed to help legal professionals.
+    system_instruction='''You are LegalAssistAI, a friendly and approachable legal research assistant who speaks naturally while providing expert help.
 
 Your capabilities include:
 1. Analyzing legal documents and identifying key elements and potential issues
@@ -93,23 +94,32 @@ Your capabilities include:
 4. Highlighting potential legal risks and considerations
 5. Suggesting possible legal strategies based on precedent
 
+When responding:
+- Use conversational language and avoid excessive legal jargon
+- Explain concepts in plain language before adding technical details
+- Use contractions (like "you're" instead of "you are") when appropriate
+- Vary sentence structure and length for natural rhythm
+- Include brief acknowledgments of user concerns or questions
+- Connect with users by using phrases like "I see your concern about..." or "I understand you're asking about..."
+
 Important limitations - you must always:
-1. Include a clear disclaimer that your analysis is not legal advice
+1. Include a friendly disclaimer that your analysis is not legal advice
 2. Avoid making definitive legal conclusions
 3. Recommend consulting with a licensed attorney for specific legal advice
 4. Be transparent about limitations in your knowledge
 5. Refuse to draft complete legal documents but can provide templates or outlines
 6. Maintain attorney-client privilege expectations by emphasizing confidentiality
 
-Structure your responses with: 
-- Initial Analysis
-- Relevant Legal Framework
-- Potential Considerations
-- Suggested Next Steps
-- Citations
-- Disclaimer
+Structure your responses to feel natural and conversational:
+- Brief acknowledgment of the question
+- Initial analysis in accessible language
+- Relevant legal framework explained simply
+- Potential considerations phrased conversationally
+- Suggested next steps in a helpful tone
+- Citations where relevant
+- Friendly disclaimer
 
-All answers should be firmly grounded in established legal principles and current law.
+All answers should be firmly grounded in established legal principles and current law while sounding like a helpful colleague rather than a textbook.
 '''
 )
 
@@ -293,20 +303,124 @@ class LSTMProcessor:
         """Return a list of available trained models"""
         return list(self.models.keys())
 
+def humanize_response(response_text):
+    """Transform formal responses into more conversational language"""
+    # Formal phrases to replace with more conversational alternatives
+    replacements = {
+        "It is important to note": "Keep in mind",
+        "It is recommended that": "I'd recommend",
+        "Please be advised": "Just so you know",
+        "It is suggested that": "You might want to",
+        "One must consider": "Consider",
+        "It is necessary to": "You'll need to",
+        "It is essential to": "It's essential to",
+        "It is advised that": "I'd advise",
+        "It is worth mentioning": "Worth mentioning",
+        "It should be noted": "Note that",
+        "In accordance with": "According to",
+        "For the purpose of": "To",
+        "In the event that": "If",
+        "Prior to": "Before",
+        "Subsequent to": "After",
+        "In order to": "To",
+        "Due to the fact that": "Because",
+        "At this point in time": "Now",
+        "At the present time": "Currently",
+        "With regards to": "Regarding",
+        "In reference to": "About",
+    }
+    
+    for formal, casual in replacements.items():
+        response_text = response_text.replace(formal, casual)
+    
+    return response_text
+
+def create_conversational_closing():
+    """Generate a varied conversational closing phrase"""
+    closings = [
+        "Hope that helps with your question!",
+        "Does this address what you were looking for?",
+        "Let me know if you need any clarification on this.",
+        "Is there anything specific about this you'd like me to explain further?",
+        "Would you like more information about any part of this?",
+        "I'm here if you have follow-up questions about this.",
+        "Does this give you what you needed?",
+        "Hope this provides the guidance you were looking for.",
+        "Let me know if you'd like me to explore any aspect of this further."
+    ]
+    return random.choice(closings)
+
+def personalize_greeting(query):
+    """Create a personalized greeting based on the legal query topic"""
+    topic_keywords = {
+        "contract": "I see you're asking about contract law",
+        "divorce": "Regarding your question about divorce proceedings",
+        "custody": "About your custody question",
+        "property": "I understand you're inquiring about property matters",
+        "employment": "Looking at your employment law question",
+        "tenant": "Regarding your tenant/landlord question",
+        "landlord": "About your landlord-tenant inquiry",
+        "bankruptcy": "I see you're asking about bankruptcy issues",
+        "injury": "Regarding your personal injury question",
+        "accident": "About your accident-related inquiry",
+        "damage": "I understand you're asking about damages",
+        "will": "Regarding your question about wills",
+        "trust": "About your question on trusts",
+        "estate": "Regarding your estate planning question",
+        "criminal": "I understand you're asking about criminal law",
+        "discrimination": "About your discrimination concern",
+        "harassment": "Regarding your harassment question"
+    }
+    
+    default_greeting = "Thanks for your legal question"
+    
+    for keyword, greeting in topic_keywords.items():
+        if keyword.lower() in query.lower():
+            return greeting
+    
+    return default_greeting
+
 class LegalProcessor:
     def __init__(self):
         self.legal_chat = legal_model.start_chat(history=[])
         self.lstm_processor = LSTMProcessor()
+        self.conversation_context = {}  # Store user context for more personalized responses
+        
+    def update_context(self, user_id, query):
+        """Update conversation context for more personalized responses"""
+        if not user_id:
+            return
+            
+        if user_id not in self.conversation_context:
+            self.conversation_context[user_id] = {"queries": [], "topics": set()}
+        
+        self.conversation_context[user_id]["queries"].append(query)
+        
+        # Extract potential topics from the query
+        legal_topics = ["contract", "property", "divorce", "criminal", "employment", "landlord"]
+        for topic in legal_topics:
+            if topic in query.lower():
+                self.conversation_context[user_id]["topics"].add(topic)
+    
+    def get_conversation_context(self, user_id):
+        """Get relevant context from previous conversation if available"""
+        if not user_id or user_id not in self.conversation_context:
+            return None
+            
+        return self.conversation_context[user_id]
         
     def process_legal_query(self, request: LegalRequest) -> Dict[str, Any]:
         try:
+            # Update user context if user_id provided
+            if request.user_id:
+                self.update_context(request.user_id, request.query)
+            
             # Format the prompt to include all relevant information
             formatted_query = f"""
-Jurisdiction: {request.jurisdiction}
-
-Legal Query: {request.query}
-
-"""
+            Jurisdiction: {request.jurisdiction}
+            Legal Query: {request.query}
+            """
+            
             # Add case details if provided
             if request.case_details:
                 formatted_query += "Case Details:\n"
@@ -315,16 +429,34 @@ Legal Query: {request.query}
             
             # Get legal analysis response
             response = self.legal_chat.send_message(formatted_query)
+            analysis_text = response.text
+            
+            # Create personalized greeting
+            greeting = personalize_greeting(request.query)
+            
+            # Transform response to be more conversational
+            humanized_response = f"{greeting}. {analysis_text}"
+            humanized_response = humanize_response(humanized_response)
+            
+            # Add a conversational closing
+            closing = create_conversational_closing()
+            if not any(marker in humanized_response.lower() for marker in ["does this help", "hope this helps", "let me know if", "anything else"]):
+                humanized_response += f"\n\n{closing}"
+            
+            # Create a more conversational disclaimer
+            disclaimer_options = [
+                "Just a friendly reminder: This is general information to help you understand the topic, not formal legal advice. For your specific situation, it's best to speak with an attorney.",
+                "Remember, I can provide general guidance but this isn't a substitute for advice from a licensed attorney who knows the specifics of your situation.",
+                "While I hope this information is helpful, please remember it's not legal advice. Consider talking to an attorney about your specific situation.",
+                "I should mention that this information is meant to help you understand the legal concepts, but only a qualified attorney can give you proper legal advice for your specific circumstances."
+            ]
+            disclaimer = random.choice(disclaimer_options)
             
             # Extract citations if present (simplified extraction)
             citations = []
-            analysis_text = response.text
-            
-            # Standard disclaimer
-            disclaimer = "DISCLAIMER: This analysis is provided for informational purposes only and does not constitute legal advice. Please consult with a licensed attorney for advice concerning your specific situation."
             
             result = {
-                'analysis': analysis_text,
+                'analysis': humanized_response,
                 'citations': citations,
                 'disclaimer': disclaimer
             }
